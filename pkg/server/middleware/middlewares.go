@@ -13,6 +13,7 @@ import (
 	"github.com/traefik/traefik/v2/pkg/log"
 	"github.com/traefik/traefik/v2/pkg/middlewares/addprefix"
 	"github.com/traefik/traefik/v2/pkg/middlewares/auth"
+	"github.com/traefik/traefik/v2/pkg/middlewares/awslambda"
 	"github.com/traefik/traefik/v2/pkg/middlewares/buffering"
 	"github.com/traefik/traefik/v2/pkg/middlewares/chain"
 	"github.com/traefik/traefik/v2/pkg/middlewares/circuitbreaker"
@@ -117,6 +118,12 @@ func (b *Builder) buildConstructor(ctx context.Context, middlewareName string) (
 	if config.AddPrefix != nil {
 		middleware = func(next http.Handler) (http.Handler, error) {
 			return addprefix.New(ctx, next, *config.AddPrefix, middlewareName)
+		}
+	}
+
+	if config.AWSLambda != nil {
+		middleware = func(next http.Handler) (http.Handler, error) {
+			return awslambda.New(ctx, next, *config.AWSLambda, middlewareName)
 		}
 	}
 

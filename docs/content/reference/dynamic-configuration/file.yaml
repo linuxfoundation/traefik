@@ -105,9 +105,16 @@ http:
         healthCheck: {}
   middlewares:
     Middleware01:
+      awsLambda:
+        accessKey: foobar
+        secretKey: foobar
+        region: foobar
+        functionArn: foobar
+        endpoint: foobar
+    Middleware02:
       addPrefix:
         prefix: foobar
-    Middleware02:
+    Middleware03:
       basicAuth:
         users:
           - foobar
@@ -116,34 +123,34 @@ http:
         realm: foobar
         removeHeader: true
         headerField: foobar
-    Middleware03:
+    Middleware04:
       buffering:
         maxRequestBodyBytes: 42
         memRequestBodyBytes: 42
         maxResponseBodyBytes: 42
         memResponseBodyBytes: 42
         retryExpression: foobar
-    Middleware04:
+    Middleware05:
       chain:
         middlewares:
           - foobar
           - foobar
-    Middleware05:
+    Middleware06:
       circuitBreaker:
         expression: foobar
         checkPeriod: 42s
         fallbackDuration: 42s
         recoveryDuration: 42s
-    Middleware06:
+    Middleware07:
       compress:
         excludedContentTypes:
           - foobar
           - foobar
         minResponseBodyBytes: 42
-    Middleware07:
+    Middleware08:
       contentType:
         autoDetect: true
-    Middleware08:
+    Middleware09:
       digestAuth:
         users:
           - foobar
@@ -152,14 +159,14 @@ http:
         removeHeader: true
         realm: foobar
         headerField: foobar
-    Middleware09:
+    Middleware10:
       errors:
         status:
           - foobar
           - foobar
         service: foobar
         query: foobar
-    Middleware10:
+    Middleware11:
       forwardAuth:
         address: foobar
         tls:
@@ -176,7 +183,7 @@ http:
         authRequestHeaders:
           - foobar
           - foobar
-    Middleware11:
+    Middleware12:
       headers:
         customRequestHeaders:
           name0: foobar
@@ -230,7 +237,7 @@ http:
         featurePolicy: foobar
         permissionsPolicy: foobar
         isDevelopment: true
-    Middleware12:
+    Middleware13:
       ipAllowList:
         sourceRange:
           - foobar
@@ -240,7 +247,7 @@ http:
           excludedIPs:
             - foobar
             - foobar
-    Middleware13:
+    Middleware14:
       ipWhiteList:
         sourceRange:
           - foobar
@@ -250,7 +257,7 @@ http:
           excludedIPs:
             - foobar
             - foobar
-    Middleware14:
+    Middleware15:
       inFlightReq:
         amount: 42
         sourceCriterion:
@@ -261,7 +268,7 @@ http:
               - foobar
           requestHeaderName: foobar
           requestHost: true
-    Middleware15:
+    Middleware16:
       passTLSClientCert:
         pem: true
         info:
@@ -286,7 +293,7 @@ http:
             commonName: true
             serialNumber: true
             domainComponent: true
-    Middleware16:
+    Middleware17:
       plugin:
         PluginConf0:
           name0: foobar
@@ -294,7 +301,7 @@ http:
         PluginConf1:
           name0: foobar
           name1: foobar
-    Middleware17:
+    Middleware18:
       rateLimit:
         average: 42
         period: 42s
@@ -307,34 +314,34 @@ http:
               - foobar
           requestHeaderName: foobar
           requestHost: true
-    Middleware18:
+    Middleware19:
       redirectRegex:
         regex: foobar
         replacement: foobar
         permanent: true
-    Middleware19:
+    Middleware20:
       redirectScheme:
         scheme: foobar
         port: foobar
         permanent: true
-    Middleware20:
+    Middleware21:
       replacePath:
         path: foobar
-    Middleware21:
+    Middleware22:
       replacePathRegex:
         regex: foobar
         replacement: foobar
-    Middleware22:
+    Middleware23:
       retry:
         attempts: 42
         initialInterval: 42s
-    Middleware23:
+    Middleware24:
       stripPrefix:
         prefixes:
           - foobar
           - foobar
         forceSlash: true
-    Middleware24:
+    Middleware25:
       stripPrefixRegex:
         regex:
           - foobar

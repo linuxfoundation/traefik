@@ -35,8 +35,26 @@ type Middleware struct {
 	PassTLSClientCert *PassTLSClientCert `json:"passTLSClientCert,omitempty" toml:"passTLSClientCert,omitempty" yaml:"passTLSClientCert,omitempty" export:"true"`
 	Retry             *Retry             `json:"retry,omitempty" toml:"retry,omitempty" yaml:"retry,omitempty" export:"true"`
 	ContentType       *ContentType       `json:"contentType,omitempty" toml:"contentType,omitempty" yaml:"contentType,omitempty" export:"true"`
+	AWSLambda         *AWSLambda         `json:"awsLambda,omitempty" toml:"awsLambda,omitempty" yaml:"awsLambda,omitempty" export:"true"`
 
 	Plugin map[string]PluginConf `json:"plugin,omitempty" toml:"plugin,omitempty" yaml:"plugin,omitempty" export:"true"`
+}
+
+// +k8s:deepcopy-gen=true
+
+// AWSLambda holds the AWS Lambda middleware configuration.
+// This middleware converts a HTTP Request to an AWS Lambda Invocation.
+type AWSLambda struct {
+	// AccessKey defines the AWS Access Key
+	AccessKey string `json:"accessKey,omitempty" toml:"accessKey,omitempty" yaml:"accessKey,omitempty"`
+	// SecretKey defines the AWS Secret Key
+	SecretKey string `json:"secretKey,omitempty" toml:"secretKey,omitempty" yaml:"secretKey,omitempty"`
+	// Region defines the AWS Region
+	Region string `json:"region,omitempty" toml:"region,omitempty" yaml:"region,omitempty"`
+	// FunctionARN defines the AWS Lambda function name to call
+	FunctionArn string `json:"functionArn,omitempty" toml:"functionArn,omitempty" yaml:"functionArn,omitempty"`
+	// Endpoint defines the AWS endpoint URL
+	Endpoint string `json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
