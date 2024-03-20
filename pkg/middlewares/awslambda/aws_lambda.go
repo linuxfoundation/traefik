@@ -157,6 +157,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO Add tracing in RequestContext
 	resp, err := a.invokeFunction(req.Context(), events.APIGatewayProxyRequest{
 		HTTPMethod:                      req.Method,
 		Path:                            req.URL.Path,
@@ -166,6 +167,9 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		MultiValueHeaders:               headersToMultiMap(req.Header),
 		Body:                            body,
 		IsBase64Encoded:                 base64Encoded,
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: make(map[string]interface{}),
+		},
 	})
 
 	if err != nil {
@@ -264,7 +268,6 @@ func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewa
 		return resp, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	// TODO Add tracing in RequestContext
 	result, err := a.client.Invoke(ctx, &lambda.InvokeInput{
 		FunctionName: aws.String(a.functionArn),
 		Payload:      payload,
