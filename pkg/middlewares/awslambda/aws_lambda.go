@@ -151,7 +151,10 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO Add tracing in RequestContext
+	// Ensure tracing headers are included in the request before copying
+	// them to the lambda request
+	tracing.InjectRequestHeaders(req)
+
 	resp, err := a.invokeFunction(req.Context(), events.APIGatewayProxyRequest{
 		HTTPMethod:                      req.Method,
 		Path:                            req.URL.Path,
@@ -210,6 +213,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	tracing.LogResponseCode(tracing.GetSpan(req), resp.StatusCode)
 	rw.WriteHeader(resp.StatusCode)
 
 	if _, err = rw.Write([]byte(body)); err != nil {
