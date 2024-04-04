@@ -152,7 +152,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(statusCode)
 		_, err := rw.Write([]byte(http.StatusText(statusCode)))
 		if err != nil {
-			log.FromContext(ctx).Error(err)
+			logger.Error(err)
 		}
 		return
 	}
@@ -182,7 +182,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(statusCode)
 		_, err := rw.Write([]byte(http.StatusText(statusCode)))
 		if err != nil {
-			log.FromContext(ctx).Error(err)
+			logger.Error(err)
 		}
 		return
 	}
@@ -200,7 +200,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			rw.WriteHeader(statusCode)
 			_, err := rw.Write([]byte(http.StatusText(statusCode)))
 			if err != nil {
-				log.FromContext(ctx).Error(err)
+				logger.Error(err)
 			}
 			return
 		}
@@ -218,18 +218,34 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	rw.WriteHeader(resp.StatusCode)
-	_, err = rw.Write([]byte(body))
-	if err != nil {
-		msg := fmt.Sprintf("Failed to write response body %s: %v", body, err)
-		logger.Debug(msg)
+	// Validate StatusCode before writing
+	if !(resp.StatusCode >= 100 && resp.StatusCode < 600) {
+		msg := fmt.Sprintf("Invalid response status code: %d", resp.StatusCode)
+		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 		statusCode := http.StatusInternalServerError
 
 		rw.WriteHeader(statusCode)
 		_, err := rw.Write([]byte(http.StatusText(statusCode)))
 		if err != nil {
-			log.FromContext(ctx).Error(err)
+			logger.Error(err)
+		}
+		return
+
+	}
+
+	rw.WriteHeader(resp.StatusCode)
+	_, err = rw.Write([]byte(body))
+	if err != nil {
+		msg := fmt.Sprintf("Failed to write response body %s: %v", body, err)
+		logger.Error(msg)
+		tracing.SetErrorWithEvent(req, msg)
+		statusCode := http.StatusInternalServerError
+
+		rw.WriteHeader(statusCode)
+		_, err := rw.Write([]byte(http.StatusText(statusCode)))
+		if err != nil {
+			logger.Error(err)
 		}
 		return
 	}
