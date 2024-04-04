@@ -147,13 +147,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 
-		statusCode := http.StatusInternalServerError
-
-		rw.WriteHeader(statusCode)
-		_, err := rw.Write([]byte(http.StatusText(statusCode)))
-		if err != nil {
-			logger.Error(err)
-		}
+		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -177,13 +171,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 
-		statusCode := http.StatusInternalServerError
-
-		rw.WriteHeader(statusCode)
-		_, err := rw.Write([]byte(http.StatusText(statusCode)))
-		if err != nil {
-			logger.Error(err)
-		}
+		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -195,13 +183,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			logger.Error(msg)
 			tracing.SetErrorWithEvent(req, msg)
 
-			statusCode := http.StatusInternalServerError
-
-			rw.WriteHeader(statusCode)
-			_, err := rw.Write([]byte(http.StatusText(statusCode)))
-			if err != nil {
-				logger.Error(err)
-			}
+			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -223,30 +205,17 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		msg := fmt.Sprintf("Invalid response status code: %d", resp.StatusCode)
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
-		statusCode := http.StatusInternalServerError
 
-		rw.WriteHeader(statusCode)
-		_, err := rw.Write([]byte(http.StatusText(statusCode)))
-		if err != nil {
-			logger.Error(err)
-		}
+		rw.WriteHeader(http.StatusInternalServerError)
 		return
-
 	}
 
 	rw.WriteHeader(resp.StatusCode)
-	_, err = rw.Write([]byte(body))
-	if err != nil {
+
+	if _, err = rw.Write([]byte(body)); err != nil {
 		msg := fmt.Sprintf("Failed to write response body %s: %v", body, err)
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
-		statusCode := http.StatusInternalServerError
-
-		rw.WriteHeader(statusCode)
-		_, err := rw.Write([]byte(http.StatusText(statusCode)))
-		if err != nil {
-			logger.Error(err)
-		}
 		return
 	}
 }
