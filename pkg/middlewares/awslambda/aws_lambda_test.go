@@ -69,7 +69,8 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
 	var buf bytes.Buffer
-	buf.Write([]byte("This is the body"))
+	b := []byte("This is the body")
+	buf.Write(b)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/%s", mockserver.URL, "test/example/path?a=1&b=2&c=3&c=4&d[]=5&d[]=6"), &buf)
 	if err != nil {
@@ -83,7 +84,7 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 	resp := recorder.Result()
 	rBody, _ := io.ReadAll(resp.Body)
 
-	assert.Equal(t, rBody, []byte("response_body"))
+	assert.Equal(t, []byte("response_body"), rbody)
 	assert.Equal(t, resp.StatusCode, http.StatusTeapot)
 }
 
@@ -106,7 +107,7 @@ func Test_AWSLambdaMiddleware_GetTracingInformation(t *testing.T) {
 // Test_AWSLambdaMiddleware_bodyToBase64_empty
 func Test_AWSLambdaMiddleware_bodyToBase64_empty(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	isEncoded, body, err := bodyToBase64(req)
 
 	assert.Equal(t, isEncoded, false)
