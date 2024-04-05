@@ -84,7 +84,7 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 	resp := recorder.Result()
 	rBody, _ := io.ReadAll(resp.Body)
 
-	assert.Equal(t, []byte("response_body"), rbody)
+	assert.Equal(t, []byte("response_body"), rBody)
 	assert.Equal(t, resp.StatusCode, http.StatusTeapot)
 }
 
