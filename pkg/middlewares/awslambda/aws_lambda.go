@@ -32,7 +32,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	_ "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,7 +44,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
-
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/traefik/traefik/v2/pkg/config/dynamic"
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -58,7 +56,7 @@ const (
 )
 
 // awsLambda is a middleware that provides routing to aws lambda
-// functions
+// functions.
 type awsLambda struct {
 	next        http.Handler
 	functionArn string
@@ -66,7 +64,7 @@ type awsLambda struct {
 	client      *lambda.Client
 }
 
-// New builds a new AwsLambda middleware
+// New builds a new AwsLambda middleware.
 func New(ctx context.Context, next http.Handler, config dynamic.AWSLambda, name string) (http.Handler, error) {
 	logger := log.FromContext(middlewares.GetLoggerCtx(ctx, name, typeName))
 	logger.Debug("Creating middleware")
@@ -125,7 +123,7 @@ func New(ctx context.Context, next http.Handler, config dynamic.AWSLambda, name 
 	}, nil
 }
 
-// GetTracingInformation
+// GetTracingInformation.
 func (a *awsLambda) GetTracingInformation() (string, ext.SpanKindEnum) {
 	return a.name, tracing.SpanKindNoneEnum
 }
@@ -168,7 +166,6 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Authorizer: make(map[string]interface{}),
 		},
 	})
-
 	if err != nil {
 		msg := fmt.Sprintf("Error invoking Lambda: %v", err)
 		logger.Error(msg)
@@ -224,7 +221,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// bodyToBase64 ensures the request body is base64 encoded
+// bodyToBase64 ensures the request body is base64 encoded.
 func bodyToBase64(req *http.Request) (bool, string, error) {
 	base64Encoded := false
 	body := ""
@@ -254,7 +251,7 @@ func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewa
 
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return resp, fmt.Errorf("failed to marshal request: %v", err)
+		return resp, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	result, err := a.client.Invoke(ctx, &lambda.InvokeInput{
@@ -271,7 +268,7 @@ func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewa
 
 	err = json.Unmarshal(result.Payload, &resp)
 	if err != nil {
-		return resp, fmt.Errorf("failed to unmarshal response: %s, %v", result.Payload, err)
+		return resp, fmt.Errorf("failed to unmarshal response: %s, %w", result.Payload, err)
 	}
 
 	return resp, nil
