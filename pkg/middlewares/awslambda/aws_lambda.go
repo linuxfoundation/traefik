@@ -44,7 +44,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
-
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/traefik/traefik/v2/pkg/config/dynamic"
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -167,7 +166,6 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Authorizer: make(map[string]interface{}),
 		},
 	})
-
 	if err != nil {
 		msg := fmt.Sprintf("Error invoking Lambda: %v", err)
 		logger.Error(msg)
