@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/traefik/traefik/v2/pkg/config/dynamic"
 	"github.com/traefik/traefik/v2/pkg/tracing"
 )
@@ -85,7 +86,7 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 	rBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, []byte("response_body"), rBody)
-	assert.Equal(t, resp.StatusCode, http.StatusTeapot)
+	assert.Equal(t, http.StatusTeapot, resp.StatusCode)
 }
 
 // Test_AWSLambdaMiddleware_GetTracingInformation tests that the
@@ -107,12 +108,12 @@ func Test_AWSLambdaMiddleware_GetTracingInformation(t *testing.T) {
 // Test_AWSLambdaMiddleware_bodyToBase64_empty
 func Test_AWSLambdaMiddleware_bodyToBase64_empty(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	isEncoded, body, err := bodyToBase64(req)
 
-	assert.Equal(t, isEncoded, false)
-	assert.Equal(t, body, "")
-	assert.Nil(t, err)
+	assert.False(t, isEncoded)
+	assert.Equal(t, "", body)
+	require.NoError(t, err)
 }
 
 // Test_AWSLambdaMiddleware_bodyToBase64_withcontent
@@ -121,10 +122,10 @@ func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
 	reqBody := `{"test": "encoded"}`
 
 	req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(reqBody))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	isEncoded, body, err := bodyToBase64(req)
 
-	assert.Equal(t, isEncoded, true)
-	assert.Equal(t, body, expected)
-	assert.Nil(t, err)
+	assert.True(t, isEncoded)
+	assert.Equal(t, expected, body)
+	require.NoError(t, err)
 }
