@@ -41,7 +41,7 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 		assert.Equal(t, map[string][]string{"c": {"3", "4"}, "d[]": {"5", "6"}}, lReq.MultiValueQueryStringParameters)
 		assert.Equal(t, map[string]string{"Content-Type": "text/plain"}, lReq.Headers)
 		assert.Equal(t, map[string][]string{"X-Test": {"foo", "foobar"}}, lReq.MultiValueHeaders)
-		assert.Equal(t, "VGhpcyBpcyB0aGUgYm9keQ==", lReq.Body)
+		assert.Equal(t, "This is the body", lReq.Body)
 
 		res.WriteHeader(http.StatusOK)
 		_, err = res.Write([]byte("{\"statusCode\": 418, \"body\":\"response_body\"}"))
@@ -116,16 +116,42 @@ func Test_AWSLambdaMiddleware_bodyToBase64_empty(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Test_AWSLambdaMiddleware_bodyToBase64_withcontent
-func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
-	expected := "eyJ0ZXN0IjogImVuY29kZWQifQ=="
+// Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON
+func Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON(t *testing.T) {
 	reqBody := `{"test": "encoded"}`
 
-	req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(reqBody))
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
+	require.NoError(t, err)
+	isEncoded, body, err := bodyToBase64(req)
+
+	assert.False(t, isEncoded)
+	assert.Equal(t, reqBody, body)
+	require.NoError(t, err)
+}
+
+// Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON
+func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
+	// application/zip
+	expected := "UEsDBA=="
+	reqBody := string([]byte{0x50, 0x4B, 0x03, 0x04})
+
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
 	require.NoError(t, err)
 	isEncoded, body, err := bodyToBase64(req)
 
 	assert.True(t, isEncoded)
 	assert.Equal(t, expected, body)
 	require.NoError(t, err)
+
+	// image/jpeg
+	expected2 := "/9j/"
+	reqBody2 := string([]byte("\xFF\xD8\xFF"))
+
+	req2, err2 := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody2))
+	require.NoError(t, err2)
+	isEncoded2, body2, err2 := bodyToBase64(req2)
+
+	assert.True(t, isEncoded2)
+	assert.Equal(t, expected2, body2)
+	require.NoError(t, err2)
 }

@@ -38,6 +38,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -225,22 +226,44 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func bodyToBase64(req *http.Request) (bool, string, error) {
 	base64Encoded := false
 	body := ""
+	// base64 encode non-text request body
 	if req.ContentLength != 0 {
-		var buf bytes.Buffer
-		encoder := base64.NewEncoder(base64.StdEncoding, &buf)
+		// Copy the Request body, check if it's mime is binary, if so base64
+		// encode it, return true, body, nil, else return false, body, nil
+		// Ensure the body is replaced
 
-		_, err := io.Copy(encoder, req.Body)
+		// Read the request body and reset it to be read again if needed
+		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
 			return base64Encoded, body, err
 		}
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		err = encoder.Close()
-		if err != nil {
-			return base64Encoded, body, err
+		body = string(bodyBytes)
+
+		// Any non 'text/*' MIME types should be base64 encoded.
+		// DetectContentType does not check for 'application/json'
+		contentType := http.DetectContentType(bodyBytes)
+		if !strings.HasPrefix(contentType, "text") {
+			base64Encoded = true
 		}
 
-		body = buf.String()
-		base64Encoded = true
+		// If base64 encoding is needed, return 'body' as a b64 encoded
+		// string of the req.Body
+		if base64Encoded {
+			var b64buf bytes.Buffer
+			encoder := base64.NewEncoder(base64.StdEncoding, &b64buf)
+
+			_, err := io.Copy(encoder, bytes.NewReader(bodyBytes))
+			if err != nil {
+				return base64Encoded, body, err
+			}
+			if err = encoder.Close(); err != nil {
+				return base64Encoded, body, err
+			}
+			// Set body to b64 encoded version
+			body = b64buf.String()
+		}
 	}
 
 	return base64Encoded, body, nil
