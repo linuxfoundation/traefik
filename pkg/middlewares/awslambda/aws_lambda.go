@@ -203,7 +203,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Validate StatusCode before writing
 	if !(resp.StatusCode >= 100 && resp.StatusCode < 600) {
-		msg := fmt.Sprintf("Invalid response status code: %d", resp.StatusCode)
+		msg := fmt.Sprintf("Invalid response. Status Code: %d; Body: %s", resp.StatusCode, body)
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 
