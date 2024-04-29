@@ -41,6 +41,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda/messages"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -67,8 +68,7 @@ type awsLambda struct {
 
 // New builds a new AwsLambda middleware.
 func New(ctx context.Context, next http.Handler, config dynamic.AWSLambda, name string) (http.Handler, error) {
-	logger := log.FromContext(middlewares.GetLoggerCtx(ctx, name, typeName))
-	logger.Debug("Creating middleware")
+	log.FromContext(middlewares.GetLoggerCtx(ctx, name, typeName)).Debug("Creating middleware")
 
 	if len(config.FunctionArn) == 0 {
 		return nil, fmt.Errorf("function arn cannot be empty")
@@ -131,16 +131,15 @@ func (a *awsLambda) GetTracingInformation() (string, ext.SpanKindEnum) {
 
 // ServeHTTP is the AWS Lambda middleware that takes a request, converts
 // it to an APIGatewayProxyRequest and invokes lambda. It should come at
-// the end of a middlware chain as it does routing internally.
+// the end of a middleware chain as it does routing internally.
 // NOTE: While this could implement the same code as Lambda Invoke
 // (ie: Construct request object, modify request to POST
 // .../functions/..., sign request) no request middleware could be used
 // afterwards as it would break the signature.
 func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	ctx := middlewares.GetLoggerCtx(req.Context(), a.name, typeName)
-	logger := log.FromContext(ctx)
+	logger := log.FromContext(middlewares.GetLoggerCtx(req.Context(), a.name, typeName))
 
-	base64Encoded, body, err := bodyToBase64(req)
+	base64Encoded, reqBody, err := bodyToBase64(req)
 	if err != nil {
 		msg := fmt.Sprintf("Error encoding Lambda request body: %v", err)
 		logger.Error(msg)
@@ -161,7 +160,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		MultiValueQueryStringParameters: valuesToMultiMap(req.URL.Query()),
 		Headers:                         headersToMap(req.Header),
 		MultiValueHeaders:               headersToMultiMap(req.Header),
-		Body:                            body,
+		Body:                            reqBody,
 		IsBase64Encoded:                 base64Encoded,
 		RequestContext: events.APIGatewayProxyRequestContext{
 			Authorizer: make(map[string]interface{}),
@@ -172,11 +171,20 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 
-		rw.WriteHeader(http.StatusInternalServerError)
+		statusCode := http.StatusInternalServerError
+		// If there's an error invoking the lambda, a response and error
+		// will be returned. Use the statuscode of the error response (502)
+		// to indicate a lambda error.
+		if resp != nil {
+			statusCode = resp.StatusCode
+		}
+
+		tracing.LogResponseCode(tracing.GetSpan(req), statusCode)
+		rw.WriteHeader(statusCode)
 		return
 	}
 
-	body = resp.Body
+	body := resp.Body
 	if resp.IsBase64Encoded {
 		buf, err := base64.StdEncoding.DecodeString(body)
 		if err != nil {
@@ -184,6 +192,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			logger.Error(msg)
 			tracing.SetErrorWithEvent(req, msg)
 
+			tracing.LogResponseCode(tracing.GetSpan(req), http.StatusInternalServerError)
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -207,6 +216,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
 
+		tracing.LogResponseCode(tracing.GetSpan(req), http.StatusInternalServerError)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -218,6 +228,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		msg := fmt.Sprintf("Failed to write response body %s: %v", body, err)
 		logger.Error(msg)
 		tracing.SetErrorWithEvent(req, msg)
+		tracing.LogResponseCode(tracing.GetSpan(req), http.StatusInternalServerError)
 		return
 	}
 }
@@ -269,12 +280,11 @@ func bodyToBase64(req *http.Request) (bool, string, error) {
 	return base64Encoded, body, nil
 }
 
-func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	var resp events.APIGatewayProxyResponse
+func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return resp, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	result, err := a.client.Invoke(ctx, &lambda.InvokeInput{
@@ -282,19 +292,31 @@ func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewa
 		Payload:      payload,
 	})
 	if err != nil {
-		return resp, err
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("Nil lambda result when calling %s", a.functionArn)
 	}
 
-	if result.StatusCode >= 300 {
-		return resp, fmt.Errorf("call to lambda failed with: HTTP %d", result.StatusCode)
+	var resp events.APIGatewayProxyResponse
+	// If invoking the lambda resulted in an error, return a 502 and
+	// set the response body to the lambda error payload
+	if result.FunctionError != nil || (result.StatusCode >= 300 || result.StatusCode < 200) {
+		resp.StatusCode = http.StatusBadGateway
+		var errResp messages.InvokeResponse_Error
+		err = json.Unmarshal(result.Payload, &errResp)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse lambda error: %w", err)
+		}
+		return &resp, fmt.Errorf("%s: %s", errResp.Message, errResp.Type)
 	}
 
 	err = json.Unmarshal(result.Payload, &resp)
 	if err != nil {
-		return resp, fmt.Errorf("failed to unmarshal response: %s, %w", result.Payload, err)
+		return nil, fmt.Errorf("failed to unmarshal response: %s, %w", result.Payload, err)
 	}
 
-	return resp, nil
+	return &resp, nil
 }
 
 func headersToMap(h http.Header) map[string]string {

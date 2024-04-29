@@ -18,7 +18,76 @@ import (
 	"github.com/traefik/traefik/v2/pkg/tracing"
 )
 
+// Setup provides a mockserver (lambda handler), and should be closed
+// with 'defer func() { mockserver.Close() }()' once recieved
+func setup(t *testing.T, response string) (*httptest.Server, http.Handler, *http.Request) {
+	mockserver := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+
+		var buf bytes.Buffer
+		_, err := io.Copy(&buf, req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var lReq events.APIGatewayProxyRequest
+		err = json.Unmarshal(buf.Bytes(), &lReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		res.WriteHeader(http.StatusOK)
+		_, err = res.Write([]byte(response))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}))
+
+	cfg := dynamic.AWSLambda{
+		AccessKey:   "aws-key",
+		Region:      "us-west-2",
+		SecretKey:   "@@not-a-key",
+		FunctionArn: "arn:aws:lambda:us-west-2:000000000000:function:xxx:1",
+		Endpoint:    mockserver.URL,
+	}
+
+	ctx := context.Background()
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+
+	handler, err := New(ctx, next, cfg, "traefik-aws-lambda-middleware")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	b := []byte("This is the body")
+	buf.Write(b)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/%s", mockserver.URL, "test/example/path?a=1&b=2&c=3&c=4&d[]=5&d[]=6"), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Add("X-Test", "foo")
+	req.Header.Add("X-Test", "foobar")
+
+	return mockserver, handler, req
+}
+
 func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
+	mockserver, handler, req := setup(t, "{\"statusCode\": 0, \"body\":\"response_body\"}")
+	defer func() { mockserver.Close() }()
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+	resp := recorder.Result()
+	rBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, []byte{}, rBody)
+	assert.Equal(t, 500, resp.StatusCode)
+}
+
+func Test_AWSLambdaMiddleware_InvokeBasic(t *testing.T) {
 	mockserver := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Equal(t, http.MethodPost, req.Method)
 		assert.Equal(t, "/2015-03-31/functions/arn%3Aaws%3Alambda%3Aus-west-2%3A000000000000%3Afunction%3Axxx%3A1/invocations", req.URL.RawPath)
@@ -44,7 +113,7 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 		assert.Equal(t, "This is the body", lReq.Body)
 
 		res.WriteHeader(http.StatusOK)
-		_, err = res.Write([]byte("{\"statusCode\": 418, \"body\":\"response_body\"}"))
+		_, err = res.Write([]byte("{\"statusCode\": 200, \"body\":\"response_body\"}"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,8 +136,6 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	recorder := httptest.NewRecorder()
-
 	var buf bytes.Buffer
 	b := []byte("This is the body")
 	buf.Write(b)
@@ -81,12 +148,14 @@ func Test_AWSLambdaMiddleware_Invoke(t *testing.T) {
 	req.Header.Add("X-Test", "foo")
 	req.Header.Add("X-Test", "foobar")
 
+	recorder := httptest.NewRecorder()
+
 	handler.ServeHTTP(recorder, req)
 	resp := recorder.Result()
 	rBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, []byte("response_body"), rBody)
-	assert.Equal(t, http.StatusTeapot, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // Test_AWSLambdaMiddleware_GetTracingInformation tests that the
