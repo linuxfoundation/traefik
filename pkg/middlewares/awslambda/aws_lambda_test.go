@@ -19,8 +19,9 @@ import (
 )
 
 // Setup provides a mockserver (lambda handler), and should be closed
-// with 'defer func() { mockserver.Close() }()' once recieved
+// with 'defer func() { mockserver.Close() }()' once received
 func setup(t *testing.T, response string) (*httptest.Server, http.Handler, *http.Request) {
+	t.Helper()
 	mockserver := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 
 		var buf bytes.Buffer
@@ -198,7 +199,7 @@ func Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON
+// Test_AWSLambdaMiddleware_bodyToBase64_withcontent
 func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
 	// application/zip
 	expected := "UEsDBA=="
