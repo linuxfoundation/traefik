@@ -23,7 +23,6 @@ import (
 func setup(t *testing.T, response string) (*httptest.Server, http.Handler, *http.Request) {
 	t.Helper()
 	mockserver := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-
 		var buf bytes.Buffer
 		_, err := io.Copy(&buf, req.Body)
 		if err != nil {

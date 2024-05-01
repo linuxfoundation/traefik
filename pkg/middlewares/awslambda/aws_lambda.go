@@ -281,7 +281,6 @@ func bodyToBase64(req *http.Request) (bool, string, error) {
 }
 
 func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
