@@ -139,7 +139,7 @@ func (a *awsLambda) GetTracingInformation() (string, ext.SpanKindEnum) {
 func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	logger := log.FromContext(middlewares.GetLoggerCtx(req.Context(), a.name, typeName))
 
-	base64Encoded, reqBody, err := bodyToBase64(req)
+	base64Encoded, contentType, body, err := bodyToBase64(req)
 	if err != nil {
 		msg := fmt.Sprintf("Error encoding Lambda request body: %v", err)
 		logger.Error(msg)
@@ -148,6 +148,26 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	// If Content-Type is set, isn't set, assume it's JSON
+	rCt := req.Header.Get("Content-Type")
+	switch rCt {
+	case "":
+		logger.Debug("Content-Type not set")
+		if !strings.HasPrefix(contentType, "text") {
+			logger.Debugf("Content-Type not like text, setting to :%s", contentType)
+			req.Header.Set("Content-Type", contentType)
+		} else {
+			req.Header.Set("Content-Type", "application/json")
+		}
+	case "application/x-www-form-urlencoded":
+		if isJSON(rCt) {
+			req.Header.Set("Content-Type", "application/json")
+		}
+	default:
+		req.Header.Set("Content-Type", "application/json")
+	}
+	logger.Debugf("Content-Type set to: %s, originally %s", req.Header.Get("Content-Type"), rCt)
 
 	// Ensure tracing headers are included in the request before copying
 	// them to the lambda request
@@ -205,6 +225,12 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	for key, values := range resp.MultiValueHeaders {
+		// NOTE This maybe specific to Content-Type, but it's listed in
+		// headers and multivalue headers so it ends up getting added twice.
+		// Is a multivalue header with only one item really multivalue?
+		if len(values) < 2 {
+			continue
+		}
 		for _, value := range values {
 			rw.Header().Add(key, value)
 		}
@@ -234,7 +260,8 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 // bodyToBase64 ensures the request body is base64 encoded.
-func bodyToBase64(req *http.Request) (bool, string, error) {
+func bodyToBase64(req *http.Request) (bool, string, string, error) {
+	contentType := ""
 	base64Encoded := false
 	body := ""
 	// base64 encode non-text request body
@@ -246,7 +273,7 @@ func bodyToBase64(req *http.Request) (bool, string, error) {
 		// Read the request body and reset it to be read again if needed
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
-			return base64Encoded, body, err
+			return base64Encoded, contentType, body, err
 		}
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
@@ -254,7 +281,7 @@ func bodyToBase64(req *http.Request) (bool, string, error) {
 
 		// Any non 'text/*' MIME types should be base64 encoded.
 		// DetectContentType does not check for 'application/json'
-		contentType := http.DetectContentType(bodyBytes)
+		contentType = http.DetectContentType(bodyBytes)
 		if !strings.HasPrefix(contentType, "text") {
 			base64Encoded = true
 		}
@@ -267,17 +294,17 @@ func bodyToBase64(req *http.Request) (bool, string, error) {
 
 			_, err := io.Copy(encoder, bytes.NewReader(bodyBytes))
 			if err != nil {
-				return base64Encoded, body, err
+				return base64Encoded, contentType, body, err
 			}
 			if err = encoder.Close(); err != nil {
-				return base64Encoded, body, err
+				return base64Encoded, contentType, body, err
 			}
 			// Set body to b64 encoded version
 			body = b64buf.String()
 		}
 	}
 
-	return base64Encoded, body, nil
+	return base64Encoded, contentType, body, nil
 }
 
 func (a *awsLambda) invokeFunction(ctx context.Context, request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
@@ -428,4 +455,11 @@ func valuesToMultiMap(i url.Values) map[string][]string {
 	}
 
 	return values
+}
+
+// Check if a string looks like JSON
+func isJSON(s string) bool {
+	var js interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
+
 }
