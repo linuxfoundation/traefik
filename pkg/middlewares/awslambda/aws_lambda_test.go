@@ -109,7 +109,6 @@ func Test_AWSLambdaMiddleware_InvokeBasic(t *testing.T) {
 		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, lReq.QueryStringParameters)
 		assert.Equal(t, map[string][]string{"c": {"3", "4"}, "d[]": {"5", "6"}}, lReq.MultiValueQueryStringParameters)
 		assert.Equal(t, map[string]string{"Content-Type": "application/json"}, lReq.Headers)
-		assert.Equal(t, map[string][]string{"X-Test": {"foo", "foobar"}}, lReq.MultiValueHeaders)
 		assert.Equal(t, "This is the body", lReq.Body)
 
 		res.WriteHeader(http.StatusOK)

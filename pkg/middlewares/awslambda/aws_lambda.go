@@ -139,7 +139,7 @@ func (a *awsLambda) GetTracingInformation() (string, ext.SpanKindEnum) {
 func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	logger := log.FromContext(middlewares.GetLoggerCtx(req.Context(), a.name, typeName))
 
-	base64Encoded, contentType, body, err := bodyToBase64(req)
+	base64Encoded, contentType, reqBody, err := bodyToBase64(req)
 	if err != nil {
 		msg := fmt.Sprintf("Error encoding Lambda request body: %v", err)
 		logger.Error(msg)
@@ -149,25 +149,28 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// If Content-Type is set, isn't set, assume it's JSON
-	rCt := req.Header.Get("Content-Type")
-	switch rCt {
-	case "":
-		logger.Debug("Content-Type not set")
-		if !strings.HasPrefix(contentType, "text") {
-			logger.Debugf("Content-Type not like text, setting to :%s", contentType)
-			req.Header.Set("Content-Type", contentType)
-		} else {
-			req.Header.Set("Content-Type", "application/json")
+	if req.ContentLength > 0 {
+		rCt := req.Header.Get("Content-Type")
+		switch rCt {
+		case "":
+			logger.Debug("Content-Type not set")
+			if !strings.HasPrefix(contentType, "text") {
+				logger.Debugf("Content-Type not like text, setting to :%s", contentType)
+				req.Header.Set("Content-Type", contentType)
+			} else {
+				req.Header.Set("Content-Type", "application/json")
+			}
+		case "application/x-www-form-urlencoded":
+			// If sending data through cURL on the commandline and
+			// the content-type header is missed, orr for
+			// applications that aren't explicitly setting Content-Type,
+			// override to 'application/json' if the body looks like JSON
+			if isJSON(reqBody) {
+				req.Header.Set("Content-Type", "application/json")
+			}
 		}
-	case "application/x-www-form-urlencoded":
-		if isJSON(rCt) {
-			req.Header.Set("Content-Type", "application/json")
-		}
-	default:
-		req.Header.Set("Content-Type", "application/json")
+		logger.Debugf("Content-Type set to: %s, originally %s", req.Header.Get("Content-Type"), rCt)
 	}
-	logger.Debugf("Content-Type set to: %s, originally %s", req.Header.Get("Content-Type"), rCt)
 
 	// Ensure tracing headers are included in the request before copying
 	// them to the lambda request
@@ -179,7 +182,6 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		QueryStringParameters:           valuesToMap(req.URL.Query()),
 		MultiValueQueryStringParameters: valuesToMultiMap(req.URL.Query()),
 		Headers:                         headersToMap(req.Header),
-		MultiValueHeaders:               headersToMultiMap(req.Header),
 		Body:                            reqBody,
 		IsBase64Encoded:                 base64Encoded,
 		RequestContext: events.APIGatewayProxyRequestContext{
