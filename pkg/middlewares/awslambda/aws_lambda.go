@@ -164,7 +164,7 @@ func (a *awsLambda) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			// If sending data through cURL on the commandline and
 			// the content-type header is missed, orr for
 			// applications that aren't explicitly setting Content-Type,
-			// override to 'application/json' if the body looks like JSON
+			// override to 'application/json' if the body looks like JSON.
 			if isJSON(reqBody) {
 				req.Header.Set("Content-Type", "application/json")
 			}
@@ -360,19 +360,6 @@ func headersToMap(h http.Header) map[string]string {
 	return values
 }
 
-func headersToMultiMap(h http.Header) map[string][]string {
-	values := map[string][]string{}
-	for name, headers := range h {
-		if len(headers) < 2 {
-			continue
-		}
-
-		values[name] = headers
-	}
-
-	return values
-}
-
 func valueToString(f interface{}) (string, bool) {
 	var v string
 	typeof := reflect.TypeOf(f)
@@ -459,9 +446,8 @@ func valuesToMultiMap(i url.Values) map[string][]string {
 	return values
 }
 
-// Check if a string looks like JSON
+// Check if a string looks like JSON.
 func isJSON(s string) bool {
 	var js interface{}
 	return json.Unmarshal([]byte(s), &js) == nil
-
 }
