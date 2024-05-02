@@ -108,8 +108,7 @@ func Test_AWSLambdaMiddleware_InvokeBasic(t *testing.T) {
 		assert.Equal(t, "/test/example/path", lReq.Path)
 		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, lReq.QueryStringParameters)
 		assert.Equal(t, map[string][]string{"c": {"3", "4"}, "d[]": {"5", "6"}}, lReq.MultiValueQueryStringParameters)
-		assert.Equal(t, map[string]string{"Content-Type": "text/plain"}, lReq.Headers)
-		assert.Equal(t, map[string][]string{"X-Test": {"foo", "foobar"}}, lReq.MultiValueHeaders)
+		assert.Equal(t, map[string]string{"Content-Type": "application/json"}, lReq.Headers)
 		assert.Equal(t, "This is the body", lReq.Body)
 
 		res.WriteHeader(http.StatusOK)
@@ -144,7 +143,7 @@ func Test_AWSLambdaMiddleware_InvokeBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Add("X-Test", "foo")
 	req.Header.Add("X-Test", "foobar")
 
@@ -178,10 +177,11 @@ func Test_AWSLambdaMiddleware_GetTracingInformation(t *testing.T) {
 func Test_AWSLambdaMiddleware_bodyToBase64_empty(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
 	require.NoError(t, err)
-	isEncoded, body, err := bodyToBase64(req)
+	isEncoded, contentType, body, err := bodyToBase64(req)
 
 	assert.False(t, isEncoded)
 	assert.Equal(t, "", body)
+	assert.Equal(t, "", contentType)
 	require.NoError(t, err)
 }
 
@@ -191,10 +191,27 @@ func Test_AWSLambdaMiddleware_bodyToBase64_notEncodedJSON(t *testing.T) {
 
 	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
 	require.NoError(t, err)
-	isEncoded, body, err := bodyToBase64(req)
+	isEncoded, contentType, body, err := bodyToBase64(req)
 
 	assert.False(t, isEncoded)
 	assert.Equal(t, reqBody, body)
+	assert.Equal(t, "text/plain; charset=utf-8", contentType)
+	require.NoError(t, err)
+}
+
+func Test_AWSLambdaMiddleware_bodyToBase64_EncodedJSON(t *testing.T) {
+	bodyBytes, err := json.Marshal(`{"test": "encoded"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(string(bodyBytes)))
+	require.NoError(t, err)
+	isEncoded, contentType, body, err := bodyToBase64(req)
+
+	assert.False(t, isEncoded)
+	assert.Equal(t, string(bodyBytes), body)
+	assert.Equal(t, "text/plain; charset=utf-8", contentType)
 	require.NoError(t, err)
 }
 
@@ -206,10 +223,11 @@ func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
 
 	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
 	require.NoError(t, err)
-	isEncoded, body, err := bodyToBase64(req)
+	isEncoded, contentType, body, err := bodyToBase64(req)
 
 	assert.True(t, isEncoded)
 	assert.Equal(t, expected, body)
+	assert.Equal(t, "application/zip", contentType)
 	require.NoError(t, err)
 
 	// image/jpeg
@@ -218,9 +236,10 @@ func Test_AWSLambdaMiddleware_bodyToBase64_withcontent(t *testing.T) {
 
 	req2, err2 := http.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody2))
 	require.NoError(t, err2)
-	isEncoded2, body2, err2 := bodyToBase64(req2)
+	isEncoded2, contentType2, body2, err2 := bodyToBase64(req2)
 
 	assert.True(t, isEncoded2)
 	assert.Equal(t, expected2, body2)
+	assert.Equal(t, "image/jpeg", contentType2)
 	require.NoError(t, err2)
 }
